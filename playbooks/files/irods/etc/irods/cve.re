@@ -20,7 +20,7 @@
 #  -31000 (SYS_INVALID_FILE_PATH)
 #
 pep_api_data_obj_copy_pre(*Instance, *Comm, *DataObjCopyInp, *TransStat) {
-	on (errorcode(*DataObjCopyInp.dst_filePath) == 0) {
+	on (cyverse_hasKey(*DataObjCopyInp, 'dst_filePath') {
 		cut;
 		failmsg(-31000, 'CYVERSE ERROR: no physical path allowed');
 	}
@@ -44,7 +44,7 @@ pep_api_data_obj_copy_pre(*Instance, *Comm, *DataObjCopyInp, *TransStat) {
 #  -31000 (SYS_INVALID_FILE_PATH)
 #
 pep_api_data_obj_put_pre(*Instance, *Comm, *DataObjInp, *DataObjInpBBuf, *PORTAL_OPR_OUT) {
-	on (errorcode(*DataObjInp.filePath) == 0) {
+	on (cyverse_hasKey(*DataObjInp, 'filePath')) {
 		cut;
 		failmsg(-31000, 'CYVERSE ERROR: no physical path allowed');
 	}
