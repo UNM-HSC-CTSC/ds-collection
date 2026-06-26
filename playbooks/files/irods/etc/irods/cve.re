@@ -20,7 +20,7 @@
 #  -31000 (SYS_INVALID_FILE_PATH)
 #
 pep_api_data_obj_copy_pre(*Instance, *Comm, *DataObjCopyInp, *TransStat) {
-	on (cyverse_hasKey(*DataObjCopyInp, 'dst_filePath') {
+	on (cyverse_hasKey(*DataObjCopyInp, 'dst_filePath')) {
 		cut;
 		failmsg(-31000, 'CYVERSE ERROR: no physical path allowed');
 	}
@@ -93,7 +93,7 @@ _cve_delete_allowed(*ClientUser, *ClientZone, *DataPath) =
 pep_api_data_obj_unlink_pre(*Instance, *Comm, *DataObjUnlinkInp) {
 	on (
 		! _cve_delete_allowed(*Comm.user_user_name, *Comm.user_rods_zone, *DataObjUnlinkInp.obj_path)
-	) {
+		) {
 		*msg = 'pep_api_data_obj_unlink_pre: prevented '
 			++ *Comm.user_user_name ++ '#' ++ *Comm.user_rods_zone ++ ' from removing logical_path '
 			++ *DataObjUnlinkInp.obj_path;
