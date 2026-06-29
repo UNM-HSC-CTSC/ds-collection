@@ -85,6 +85,9 @@ _cve_delete_allowed(*ClientUser, *ClientZone, *DataPath) =
 					*permSufficient = true;
 				}
 			}
+			if (*permSufficient) {
+			 	break;
+			}
 		} in
 	*permSufficient
 pep_api_data_obj_unlink_pre(*Instance, *Comm, *DataObjUnlinkInp) {
