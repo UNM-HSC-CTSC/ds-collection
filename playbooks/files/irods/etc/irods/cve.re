@@ -85,15 +85,10 @@ _cve_delete_allowed(*ClientUser, *ClientZone, *DataPath) =
 					*permSufficient = true;
 				}
 			}
-			if (*permSufficient) {
-			 	break;
-			}
 		} in
 	*permSufficient
 pep_api_data_obj_unlink_pre(*Instance, *Comm, *DataObjUnlinkInp) {
-	on (
-		! _cve_delete_allowed(*Comm.user_user_name, *Comm.user_rods_zone, *DataObjUnlinkInp.obj_path)
-		) {
+	if (! _cve_delete_allowed(*Comm.user_user_name, *Comm.user_rods_zone, *DataObjUnlinkInp.obj_path)) {
 		*msg = 'pep_api_data_obj_unlink_pre: prevented '
 			++ *Comm.user_user_name ++ '#' ++ *Comm.user_rods_zone ++ ' from removing logical_path '
 			++ *DataObjUnlinkInp.obj_path;
