@@ -37,11 +37,13 @@ def _publish(uri: str, exchange: str, routing_key: str, body: str) -> None:
     conn_params.socket_timeout = 10
 
     with pika.BlockingConnection(conn_params) as conn:
+        # pika.DeliveryMode.Persistent==2
+        # Note that the pika.DeliveryMode Enum was not introduced until after pika 1.2.0 (which is what is installed on Ubuntu 24)
         conn.channel().basic_publish(
             exchange=exchange,
             routing_key=routing_key,
             body=body,
-            properties=pika.BasicProperties(delivery_mode=pika.DeliveryMode.Persistent))
+            properties=pika.BasicProperties(delivery_mode=2))
 
 
 def _main(argv: List[str]) -> int:
