@@ -15,6 +15,7 @@ _irods_canonical_zone_port: "{{ irods_canonical_zone_port | d(_irods_zone_port) 
 _irods_check_routes_timeout: "{{ irods_check_routes_timeout | d(3) }}"
 _irods_clerver_password: "{{ irods_clerver_password | d('rods') }}"
 _irods_clerver_user: "{{ irods_clerver_user | d('rods') }}"
+_irods_client_server_policy: "{{ irods_client_server_policy | d('CS_NEG_REFUSE') }}"
 _irods_db_password: "{{ irods_db_password | d('testpassword') }}"
 _irods_db_username: "{{ irods_db_username | d('irods') }}"
 _irods_dbms_host: "{{ irods_dbms_host | d(groups['irods_catalog'][0]) }}"
@@ -50,6 +51,11 @@ _irods_server_port_range_end: "{{ irods_server_port_range_end | d(20199) }}"
 _irods_server_port_range_start: "{{ irods_server_port_range_start | d(20000) }}"
 _irods_service_account_name: "{{ irods_service_account_name | d('irods') }}"
 _irods_service_group_name: "{{ irods_service_group_name | d(_irods_service_account_name) }}"
+_irods_ssl_ca_certificate_file: "{{ irods_ssl_ca_certificate_file | d(None) }}"
+_irods_ssl_certificate_chain_file: "{{ irods_ssl_certificate_chain_file | d(None) }}"
+_irods_ssl_certificate_key_file: "{{ irods_ssl_certificate_key_file | d(None) }}"
+_irods_ssl_dh_params_file: "{{ irods_ssl_dh_params_file | d(None) }}"
+_irods_ssl_verify_server: "{{ irods_ssl_verify_server | d(None) }}"
 _irods_storage_resources: "{{ irods_storage_resources | d([]) }}"
 _irods_sysctl_kernel: "{{ irods_sysctl_kernel | d([]) }}"
 _irods_user_password_salt: "{{ irods_user_password_salt | d(None) }}"
@@ -60,7 +66,6 @@ _irods_zone_name: "{{ irods_zone_name | d('tempZone') }}"
 
 # The following are internal constants
 
-_irods_client_server_policy: CS_NEG_REFUSE
 _irods_default_hash_scheme: MD5
 _irods_server_control_plane_port: 1248
 _irods_zone_port: 1247
