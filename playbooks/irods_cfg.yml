@@ -8,6 +8,27 @@
       tags:
         - no_testing
 
+# Ported from upstream cyverse/ds-collection commits 68190e1 and 4eeda81
+# (TAR slip fix). Needed alongside the msiTarFileExtract override in cve.re:
+# even with that microservice disabled, the service account must not be able
+# to write into msiExecCmd_bin, since anything placed there is executable by
+# the server.
+#
+# XXX: This can be removed after upgrading to iRODS 5.1.0
+- name: TAR slip workaround
+  hosts: irods
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Ensure service account owns msiExecCmd_bin and its contents
+      ansible.builtin.file:
+        path: /var/lib/irods/msiExecCmd_bin
+        state: directory
+        owner: "{{ _irods_service_account_name }}"
+        recurse: true
+      tags: non_idempotent
+# XXX: ^^^
+
 - name: Configure iRODS
   hosts: irods_catalog
   become: "{{ _irods_become_svc_acnt }}"
@@ -144,8 +165,7 @@
 
 - name: Remove old rule files and command scripts
   hosts: irods
-  become: "{{ _irods_become_svc_acnt }}"
-  become_user: "{{ _irods_service_account_name }}"
+  become: true
   gather_facts: false
   tasks:
     - name: Remove ipc-encryption.re
@@ -157,3 +177,13 @@
       ansible.builtin.file:
         path: /var/lib/irods/msiExecCmd_bin/correct-size
         state: absent
+
+    # XXX: This can be removed after upgrading to iRODS 5.1.0
+    - name: Ensure service account can't modify msiExecCmd_bin or its contents
+      ansible.builtin.file:
+        path: /var/lib/irods/msiExecCmd_bin
+        state: directory
+        owner: root
+        mode: go-w,g+rx
+        recurse: true
+    # XXX: ^^^

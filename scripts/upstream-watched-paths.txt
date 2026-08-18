@@ -1,0 +1,19 @@
+# Paths tracked against upstream cyverse/ds-collection for security-relevant
+# changes. See scripts/check-upstream.sh.
+#
+# This fork intentionally diverges from upstream in large ways (iRODS pinned
+# to 4.3.3, Ubuntu 24 support, testing/infra rewrites), so a full merge from
+# upstream is not viable. These are the paths where upstream changes are
+# still worth reviewing and manually porting.
+
+playbooks/files/irods/etc/irods/cve.re
+
+# Deploys/hardens the same CVE workarounds (e.g. msiExecCmd_bin permissions
+# for the TAR slip fix) - changes here are usually paired with cve.re changes.
+playbooks/irods_cfg.yml
+
+# Test coverage for the two files above. Our testing infra has diverged too
+# much from upstream's to port these verbatim, but worth reading when they
+# change to make sure our own tests still cover the same scenarios.
+playbooks/tests/rules/cve.py
+playbooks/tests/irods_cfg.yml

@@ -2,6 +2,42 @@
 #
 # © 2025 The Arizona Board of Regents on behalf of The University of Arizona.
 # For license information, see https://cyverse.org/license.
+#
+# Ported from upstream cyverse/ds-collection commit 68190e1 ("TAR slip fix").
+# That commit also included workarounds for CVE-2024-38462 (msiSendMail) and
+# CVE-2024-38461 (msiServerMonPerf), but both were fixed in iRODS core itself
+# as of 4.3.2 (irods/irods#7651, irods/irods#7652), so they're omitted here
+# since this playbook pins iRODS to 4.3.3.
+
+
+# Prevent tar slip security hole. It prevents the microservice
+# `msiTarFileExtract` from executing.
+#
+# This can be removed after upgrading to 5.1.0
+#
+# Parameters:
+#  LogicalPath  (string) the absolute path to the tar file to extract
+#  TargetColl   (string) unused
+#  DestResc     (string) unused
+#  STATUS       (int) unused
+#
+# Session Variables:
+#  userNameClient
+#  rodsZoneClient
+#
+# Error Codes:
+#  -169000 (SYS_NOT_ALLOWED)
+#
+msiTarFileExtract(*LogicalPath, *TargetColl, *DestResc, *STATUS) {
+	*clientUser = $userNameClient;
+	*clientZone = $rodsZoneClient;
+
+	writeLine(
+		'serverLog',
+		'msiTarFileExtract: prevented *clientUser#*clientZone from extracting *LogicalPath' );
+
+	failmsg(-169000, 'msiTarFileExtract is not allowed');
+}
 
 
 # There is a security hole in `icp -p` that allows an overwrite to escape the
