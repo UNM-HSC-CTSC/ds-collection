@@ -488,6 +488,23 @@ pep_api_bulk_data_obj_reg_post(*Instance, *Comm, *BulkDataObjRegInp, *BULK_DATA_
 }
 
 
+# COLL_CREATE
+
+# This is the post processing logic for when a collection is created through the
+# API using a COLL_CREATE request.
+#
+# Parameters:
+#  Instance       (string) unknown
+#  Comm           (`KeyValuePair_PI`) user connection and auth information
+#  CollCreateInp  (`KeyValuePair_PI`) information related to the created
+#                 collection
+#
+pep_api_coll_create_post(*Instance, *Comm, *CollCreateInp) {
+	*status = errormsg(cyverse_trash_api_coll_create_post(*Instance, *Comm, *CollCreateInp), *msg);
+	if (*status < 0) { writeLine('serverLog', *msg); }
+}
+
+
 # DATA_OBJ_COPY
 
 # This is the post processing logic for when a data object is copied through the
@@ -505,6 +522,10 @@ pep_api_bulk_data_obj_reg_post(*Instance, *Comm, *BulkDataObjRegInp, *BULK_DATA_
 pep_api_data_obj_copy_post(*Instance, *Comm, *DataObjCopyInp, *TransStat) {
 	*status = errormsg(
 		cyverse_logic_api_data_obj_copy_post(*Instance, *Comm, *DataObjCopyInp, *TransStat), *msg );
+	if (*status < 0) { writeLine('serverLog', *msg); }
+
+	*status = errormsg(
+		cyverse_trash_api_data_obj_copy_post(*Instance, *Comm, *DataObjCopyInp, *TransStat), *msg );
 	if (*status < 0) { writeLine('serverLog', *msg); }
 }
 
@@ -529,6 +550,83 @@ pep_api_data_obj_put_post(*Instance, *Comm, *DataObjInp, *DataObjInpBBuf, *PORTA
 		cyverse_logic_api_data_obj_put_post(*Instance, *Comm, *DataObjInp, *DataObjInpBBuf, *PORTAL_OPR_OUT),
 		*msg );
 	if (*status < 0) { writeLine('serverLog', *msg); }
+
+	*status = errormsg(
+		cyverse_trash_api_data_obj_put_post(*Instance, *Comm, *DataObjInp, *DataObjInpBBuf, *PORTAL_OPR_OUT),
+		*msg );
+	if (*status < 0) { writeLine('serverLog', *msg); }
+}
+
+
+# DATA_OBJ_RENAME
+
+# This is the pre processing logic for when an attempt is made to rename a data
+# object through the API using a DATA_OBJ_RENAME request.
+#
+# Parameters:
+#  Instance          (string) unknown
+#  Comm              (`KeyValuePair_PI`) user connection and auth information
+#  DataObjRenameInp  (`KeyValuePair_PI`) information about the data object and
+#                    its new path
+#
+pep_api_data_obj_rename_pre(*Instance, *Comm, *DataObjRenameInp) {
+	cyverse_trash_api_data_obj_rename_pre(*Instance, *Comm, *DataObjRenameInp);
+}
+
+# This is the post processing logic for when a data object is renamed through
+# the API using a DATA_OBJ_RENAME request.
+#
+# Parameters:
+#  Instance          (string) unknown
+#  Comm              (`KeyValuePair_PI`) user connection and auth information
+#  DataObjRenameInp  (`KeyValuePair_PI`) information about the data object and
+#                    its old path
+#
+pep_api_data_obj_rename_post(*Instance, *Comm, *DataObjRenameInp) {
+	*status = errormsg(
+		cyverse_trash_api_data_obj_rename_post(*Instance, *Comm, *DataObjRenameInp), *msg );
+	if (*status < 0) { writeLine('serverLog', *msg); }
+}
+
+
+# DATA_OBJ_UNLINK
+
+# This is the pre processing logic for when an attempt is made to delete a data
+# object through the API using a DATA_OBJ_UNLINK request.
+#
+# Parameters:
+#  Instance          (string) unknown
+#  Comm              (`KeyValuePair_PI`) user connection and auth information
+#  DataObjUnlinkInp  (`KeyValuePair_PI`) information about the data object being
+#                    deleted
+#
+pep_api_data_obj_unlink_pre(*Instance, *Comm, *DataObjUnlinkInp) {
+	cyverse_trash_api_data_obj_unlink_pre(*Instance, *Comm, *DataObjUnlinkInp);
+}
+
+# This is the post processing logic for when a data object is deleted through
+# the API using a DATA_OBJ_UNLINK request.
+#
+# Parameters:
+#  Instance          (string) unknown
+#  Comm              (`KeyValuePair_PI`) user connection and auth information
+#  DataObjUnlinkInp  (`KeyValuePair_PI`) information about the data object being
+#                    deleted
+#
+pep_api_data_obj_unlink_post(*Instance, *Comm, *DataObjUnlinkInp) {
+	cyverse_trash_api_data_obj_unlink_post(*Instance, *Comm, *DataObjUnlinkInp);
+}
+
+# This is the exception logic for when an API DATA_OBJ_UNLINK request fails.
+#
+# Parameters:
+#  Instance          (string) unknown
+#  Comm              (`KeyValuePair_PI`) user connection and auth information
+#  DataObjUnlinkInp  (`KeyValuePair_PI`) information about the data object being
+#                    deleted
+#
+pep_api_data_obj_unlink_except(*Instance, *Comm, *DataObjUnlinkInp) {
+	cyverse_trash_api_data_obj_unlink_except(*Instance, *Comm, *DataObjUnlinkInp);
 }
 
 
@@ -547,6 +645,36 @@ pep_api_data_obj_put_post(*Instance, *Comm, *DataObjInp, *DataObjInpBBuf, *PORTA
 pep_api_phy_path_reg_post(*Instance, *Comm, *PhyPathRegInp) {
 	*status = errormsg(cyverse_logic_api_phy_path_reg_post(*Instance, *Comm, *PhyPathRegInp), *msg);
 	if (*status < 0) { writeLine('serverLog', *msg); }
+}
+
+
+# RM_COLL
+
+# This is the pre processing logic for when an attempt is made to delete a
+# collection through the API using a RM_COLL request.
+#
+# Parameters:
+#  Instance     (string) unknown
+#  Comm         (`KeyValuePair_PI`) user connection and auth information
+#  RmCollInp    (`KeyValuePair_PI`) information about the collection being
+#               deleted
+#  CollOprStat  unknown
+#
+pep_api_rm_coll_pre(*Instance, *Comm, *RmCollInp, *CollOprStat) {
+	cyverse_trash_api_rm_coll_pre(*Instance, *Comm, *RmCollInp, *CollOprStat);
+}
+
+# This is the exception logic for when an API RM_COLL request fails.
+#
+# Parameters:
+#  Instance     (string) unknown
+#  Comm         (`KeyValuePair_PI`) user connection and auth information
+#  RmCollInp    (`KeyValuePair_PI`) information about the collection being
+#               deleted
+#  CollOprStat  unknown
+#
+pep_api_rm_coll_except(*Instance, *Comm, *RmCollInp, *CollOprStat) {
+	cyverse_trash_api_rm_coll_except(*Instance, *Comm, *RmCollInp, *CollOprStat);
 }
 
 
@@ -581,6 +709,9 @@ pep_api_touch_post(*Instance, *Comm, *JsonInput) {
 #
 pep_api_data_obj_create_post(*Instance, *Comm, *DataObjInp) {
 	*status = errormsg(cyverse_logic_api_data_obj_create_post(*Instance, *Comm, *DataObjInp), *msg);
+	if (*status < 0) { writeLine('serverLog', *msg); }
+
+	*status = errormsg(cyverse_trash_api_data_obj_create_post(*Instance, *Comm, *DataObjInp), *msg);
 	if (*status < 0) { writeLine('serverLog', *msg); }
 }
 

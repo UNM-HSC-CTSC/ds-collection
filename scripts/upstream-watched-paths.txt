@@ -26,3 +26,11 @@ playbooks/files/irods/etc/irods/cyverse_housekeeping.re
 playbooks/files/irods/etc/irods/cyverse_trash.re
 playbooks/tests/rules/cyverse_housekeeping.py
 playbooks/tests/rules/cyverse_trash.py
+
+# cyverse_core.re dispatches to cyverse_trash_api_* (see above) via pep_api_*
+# wrappers for coll_create/data_obj_copy/data_obj_put/data_obj_rename/
+# data_obj_unlink/data_obj_create/rm_coll. This fork's core.re predates
+# upstream's encryption/repl/transfer_tracking dispatch calls in these same
+# hooks and intentionally only carries the trash ones - diff carefully rather
+# than porting upstream's version of these hooks wholesale.
+playbooks/files/irods/etc/irods/cyverse_core.re
