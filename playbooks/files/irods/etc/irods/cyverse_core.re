@@ -590,19 +590,16 @@ pep_api_data_obj_rename_post(*Instance, *Comm, *DataObjRenameInp) {
 
 
 # DATA_OBJ_UNLINK
-
-# This is the pre processing logic for when an attempt is made to delete a data
-# object through the API using a DATA_OBJ_UNLINK request.
 #
-# Parameters:
-#  Instance          (string) unknown
-#  Comm              (`KeyValuePair_PI`) user connection and auth information
-#  DataObjUnlinkInp  (`KeyValuePair_PI`) information about the data object being
-#                    deleted
-#
-pep_api_data_obj_unlink_pre(*Instance, *Comm, *DataObjUnlinkInp) {
-	cyverse_trash_api_data_obj_unlink_pre(*Instance, *Comm, *DataObjUnlinkInp);
-}
+# NB: There is no pep_api_data_obj_unlink_pre hook in this file. cve.re already
+# defines that hook (for the irods/irods#8441 delete-permission fix), and since
+# "cve" is listed before "cyverse_core" in additional_rulebases, its definition
+# is the only one iRODS's rule engine ever resolves - a same-named definition
+# here would be silently dead code (this was tried and confirmed dead via
+# server log inspection - no cyverse_trash_api_data_obj_unlink_pre call, no
+# imeta-exec, ever showed up for a delete). The call into
+# cyverse_trash_api_data_obj_unlink_pre is made from cve.re's hook instead, in
+# its success path.
 
 # This is the post processing logic for when a data object is deleted through
 # the API using a DATA_OBJ_UNLINK request.
