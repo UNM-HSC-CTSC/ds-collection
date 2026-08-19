@@ -136,4 +136,9 @@ pep_api_data_obj_unlink_pre(*Instance, *Comm, *DataObjUnlinkInp) {
 		cut;
 		failmsg(-818000, 'delete_object or greater required');
 	}
+
+	# NB: cyverse_core.re does not (and cannot) define its own
+	# pep_api_data_obj_unlink_pre - see the comment there under DATA_OBJ_UNLINK.
+	# This delegates to cyverse_trash's tagging logic so it still runs.
+	cyverse_trash_api_data_obj_unlink_pre(*Instance, *Comm, *DataObjUnlinkInp);
 }
