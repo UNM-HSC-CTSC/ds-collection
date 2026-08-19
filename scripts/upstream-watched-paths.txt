@@ -17,3 +17,12 @@ playbooks/irods_cfg.yml
 # change to make sure our own tests still cover the same scenarios.
 playbooks/tests/rules/cve.py
 playbooks/tests/irods_cfg.yml
+
+# Trash removal, quota-usage tracking, and storage free-space tracking. Not
+# security-relevant, but restored from a prior deletion (see
+# cyverse_ds_housekeeping.md) - watched so future upstream changes don't
+# silently drift again.
+playbooks/files/irods/etc/irods/cyverse_housekeeping.re
+playbooks/files/irods/etc/irods/cyverse_trash.re
+playbooks/tests/rules/cyverse_housekeeping.py
+playbooks/tests/rules/cyverse_trash.py
