@@ -247,5 +247,92 @@
         host: "{{ inventory_hostname }}"
         password: "{{ _irods_clerver_password }}"
 
+- name: Tune ICAT database indexes
+  hosts: dbms_primary
+  become: true
+  become_user: postgres
+  run_once: true
+  tasks:
+    - name: Ensure index on r_data_main resc_id exists
+      community.postgresql.postgresql_idx:
+        db: ICAT
+        table: r_data_main
+        columns: resc_id
+        name: idx_data_main7
+
+    - name: Ensure index on r_data_main data_is_dirty exists
+      community.postgresql.postgresql_idx:
+        db: ICAT
+        table: r_data_main
+        columns: data_is_dirty
+        name: idx_data_main8
+
+    # XXX - community.postgresql.postgresql_idx doesn't support the INCLUDE clause, so
+    # community.postgresql.postgresql_query is used to create the remaining indexes. Since that module
+    # cannot determine on its own whether a CREATE INDEX would be a no-op, each index is created only
+    # when a preceding lookup shows it doesn't already exist.
+    - name: Look up covering index on r_meta_main
+      community.postgresql.postgresql_query:
+        db: ICAT
+        query: SELECT 1 FROM pg_indexes WHERE indexname = 'idx_meta_main5'
+      register: _meta_main_idx
+      changed_when: false
+
+    - name: Ensure covering index on r_meta_main exists
+      community.postgresql.postgresql_query:
+        db: ICAT
+        query: >-
+          CREATE INDEX CONCURRENTLY idx_meta_main5
+          ON r_meta_main (meta_attr_name, meta_attr_value, meta_attr_unit)
+          INCLUDE (meta_id)
+        autocommit: true
+      when: _meta_main_idx.rowcount == 0
+
+    - name: Look up covering index on r_objt_access
+      community.postgresql.postgresql_query:
+        db: ICAT
+        query: SELECT 1 FROM pg_indexes WHERE indexname = 'idx_objt_access2'
+      register: _objt_access_idx
+      changed_when: false
+
+    - name: Ensure covering index on r_objt_access exists
+      community.postgresql.postgresql_query:
+        db: ICAT
+        query: >-
+          CREATE INDEX CONCURRENTLY idx_objt_access2
+          ON r_objt_access (object_id, user_id)
+          INCLUDE (access_type_id)
+        autocommit: true
+      when: _objt_access_idx.rowcount == 0
+    # XXX - ^^^
+
+    - name: Ensure index on r_objt_metamap (meta_id, object_id) exists
+      community.postgresql.postgresql_idx:
+        db: ICAT
+        table: r_objt_metamap
+        columns:
+          - meta_id
+          - object_id
+        name: idx_objt_metamap4
+
+    # XXX - see above
+    - name: Look up covering index on r_user_main
+      community.postgresql.postgresql_query:
+        db: ICAT
+        query: SELECT 1 FROM pg_indexes WHERE indexname = 'idx_user_main3'
+      register: _user_main_idx
+      changed_when: false
+
+    - name: Ensure covering index on r_user_main exists
+      community.postgresql.postgresql_query:
+        db: ICAT
+        query: >-
+          CREATE INDEX CONCURRENTLY idx_user_main3
+          ON r_user_main (user_id)
+          INCLUDE (user_name, zone_name)
+        autocommit: true
+      when: _user_main_idx.rowcount == 0
+# XXX - ^^^
+
 - name: Perform run-time configuration
   ansible.builtin.import_playbook: irods_runtime_init.yml

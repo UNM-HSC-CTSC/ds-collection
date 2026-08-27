@@ -296,5 +296,36 @@
       failed_when: not response.stat.exists or response.stat.pw_name != 'irods'
 
 
+- name: Test ICAT database index tuning
+  hosts: dbms_primary
+  become: true
+  become_user: postgres
+  run_once: true
+  tasks:
+    - name: Retrieve tuning index definitions
+      community.postgresql.postgresql_query:
+        db: ICAT
+        query: >-
+          SELECT indexname, indexdef FROM pg_indexes
+          WHERE indexname IN (
+            'idx_data_main7', 'idx_data_main8', 'idx_meta_main5',
+            'idx_objt_access2', 'idx_objt_metamap4', 'idx_user_main3')
+      register: response
+      changed_when: false
+
+    - name: Verify all tuning indexes exist
+      ansible.builtin.assert:
+        that: response.query_result | length == 6
+
+    - name: Verify covering indexes include expected columns
+      vars:
+        indexdefs: "{{ response.query_result | items2dict(key_name='indexname', value_name='indexdef') }}"
+      ansible.builtin.assert:
+        that:
+          - indexdefs.idx_meta_main5 is search('INCLUDE \(meta_id\)')
+          - indexdefs.idx_objt_access2 is search('INCLUDE \(access_type_id\)')
+          - indexdefs.idx_user_main3 is search('INCLUDE \(user_name, zone_name\)')
+
+
 - name: Test iRODS run-time initialization
   ansible.builtin.import_playbook: irods_runtime_init.yml
