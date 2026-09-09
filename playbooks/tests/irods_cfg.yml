@@ -56,14 +56,25 @@
       register: response
       failed_when: not response.stat.exists
 
+    # XXX: This is to prevent TAR slip. It can be removed after upgrading to iRODS 5.1.0
+    - name: Verify msiExecCmd_bin not owned by irods
+      ansible.builtin.stat:
+        path: /var/lib/irods/msiExecCmd_bin
+      register: response
+      failed_when: response.stat.pw_name == 'irods' or response.stat.wgrp or response.stat.woth
+    # XXX: ^^^
+
     - name: Verify common command scripts are in place
       ansible.builtin.stat:
         path: /var/lib/irods/msiExecCmd_bin/{{ item }}
       register: response
+      # XXX: This is to prevent TAR slip. It can be removed after upgrading to iRODS 5.1.0
       failed_when: >-
         not response.stat.exists
-        or response.stat.pw_name != 'irods'
-        or not response.stat.xusr
+        or response.stat.pw_name == 'irods'
+        or response.stat.wgrp or response.stat.woth or not response.stat.xgrp
+        or not response.stat.rgrp
+      # XXX: ^^^
       loop:
         - amqp-topic-send
         - delete-scheduled-rule

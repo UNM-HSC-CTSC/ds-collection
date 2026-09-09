@@ -142,3 +142,56 @@ pep_api_data_obj_unlink_pre(*Instance, *Comm, *DataObjUnlinkInp) {
 	# This delegates to cyverse_trash's tagging logic so it still runs.
 	cyverse_trash_api_data_obj_unlink_pre(*Instance, *Comm, *DataObjUnlinkInp);
 }
+
+
+# There is a security hole that allows a user to retrieve sensitive information
+# from an iRODS server. This rule blocks downloading subfiles.
+#
+# Ported from upstream cyverse/ds-collection commit f071554 ("Implemented
+# patch for get-slip security bug").
+#
+# This can be removed after upgrading to iRODS 5.1.0.
+#
+# Parameters:
+#  Instance  (string) unused
+#  Comm      (`KeyValuePair_PI`) information related to the session
+#  Subfile   (unknown) unused
+#  OUT_BUF   (unknown) unused
+#
+# Error Codes:
+#  -169000 (SYS_NOT_ALLOWED)
+#
+pep_api_sub_struct_file_get_pre(*Instance, *Comm, *Subfile, *OUT_BUF) {
+	*msg = 'pep_api_sub_struct_file_get_pre: prevented '
+		++ '[' ++ *Comm.user_user_name ++ '#' ++ *Comm.user_rods_zone ++ '] from getting a subfile';
+
+	writeLine('serverLog', *msg);
+	failmsg(-169000, 'getting a subfile is not allowed');  # SYS_NOT_ALLOWED
+}
+
+
+# There is a security hole that allows a user to put a script in
+# msiExecCmd_bin, which can then be executed as the service account. This rule
+# blocks uploading subfiles.
+#
+# Ported from upstream cyverse/ds-collection commit a3bd6b5 ("Implemented
+# patch for put-slip security bug").
+#
+# This can be removed after upgrading to iRODS 5.1.0.
+#
+# Parameters:
+#  Instance  (string) unused
+#  Comm      (`KeyValuePair_PI`) information related to the session
+#  Subfile   (unknown) unused
+#  OUT_BUF   (unknown) unused
+#
+# Error Codes:
+#  -169000 (SYS_NOT_ALLOWED)
+#
+pep_api_sub_struct_file_put_pre(*Instance, *Comm, *Subfile, *OUT_BUF) {
+	*msg = 'pep_api_sub_struct_file_put_pre: prevented '
+		++ '[' ++ *Comm.user_user_name ++ '#' ++ *Comm.user_rods_zone ++ '] from putting a subfile';
+
+	writeLine('serverLog', *msg);
+	failmsg(-169000, 'putting a subfile is not allowed');  # SYS_NOT_ALLOWED
+}
