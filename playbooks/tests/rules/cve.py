@@ -215,6 +215,13 @@ class TestPepApiSubStructFilePut(_TarTest):
         self.fail("Didn't log correct message")
 
 
+# NB: This PEP cannot be triggered except through a custom implementation of the
+# iRODS protocol. For now, let's skip testing it.
+@test_rules.unimplemented
+class TestPepApiSubStructFileGet:
+    """Tests of pep_api_sub_struct_file_get_pre"""
+
+
 class PepApiDataObjCopyPreTestP(_CveTest):
     """Test pep_api_data_obj_copy_pre with -p option"""
 
