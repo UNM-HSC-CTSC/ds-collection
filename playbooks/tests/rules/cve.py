@@ -6,13 +6,14 @@
 
 """Tests of cve.re rule logic."""
 
-from os import path
+from os import environ, path
 from pathlib import Path
 import subprocess
 from subprocess import PIPE
 import tarfile
 import tempfile
 from tempfile import NamedTemporaryFile
+import time
 import unittest
 
 import test_rules
@@ -20,13 +21,15 @@ from test_rules import IrodsTestCase, IrodsType, IrodsVal
 
 from irods.access import iRODSAccess
 from irods.api_number import api_number
+from irods.column import Like
 from irods.data_object import iRODSDataObject
 from irods.exception import (
     CAT_NO_ACCESS_PERMISSION, CATALOG_ALREADY_HAS_ITEM_BY_THAT_NAME, CUT_ACTION_PROCESSED_ERR,
-    SYS_NOT_ALLOWED)
+    SYS_NOT_ALLOWED, UserDoesNotExist)
 from irods.message import (
-    iRODSMessage, IntegerProperty, LongProperty, Message, RodsHostAddress, StringProperty,
-    SubmessageProperty)
+    GenQueryResponse, GenQueryResponseColumn, iRODSMessage, IntegerProperty, LongProperty, Message,
+    RodsHostAddress, StringProperty, StringStringMap, SubmessageProperty, UserAdminRequest)
+from irods.models import RuleExec
 from irods.session import iRODSSession
 from paramiko import AutoAddPolicy, SSHClient
 
@@ -34,6 +37,7 @@ from paramiko import AutoAddPolicy, SSHClient
 _TEST_DATA = "/testing/home/rods/test_data"
 _TAR_OBJ = "/testing/home/rods/test_data.tar"
 _MNT_COLL = "/testing/home/rods/mnt"
+_CONSUMER_HOST = "dstesting-consumer_configured_ubuntu-1.dstesting_default"
 
 
 def setUpModule():  # pylint: disable=invalid-name
@@ -106,6 +110,125 @@ class MsitarfileextractTest(_TarTest):
         """Verify that a message was logged"""
         msg = f'msiTarFileExtract: prevented {self.irods.username}#{self.irods.zone}' \
             f' from extracting {_TAR_OBJ}'
+        for line in self.tail_rods_log():
+            if msg in line:
+                return
+        self.fail("Didn't log correct message")
+
+
+class PepApiAuthResponsePreTest(_CveTest):
+    """Tests of pep_api_auth_response_pre"""
+
+    @classmethod
+    def setUpClass(cls):
+        test_rules.clear_rods_log()
+
+    def _call(self, startup_user: str, startup_zone: str, auth_user: str, auth_zone: str) -> IrodsVal:
+        rule = self.mk_rule(f"""
+            *Comm.proxy_user_name = '{startup_user}';
+            *Comm.proxy_rods_zone = '{startup_zone}';
+            *Resp.username = '{auth_user}#{auth_zone}';
+            *ec = errorcode(pep_api_auth_response_pre('', *Comm, *Resp));
+            writeLine('stdout', '*ec');
+        """)
+        return self.exec_rule(rule, IrodsType.INTEGER)
+
+    def test_allowed(self):
+        """Verify that a matching user is accepted"""
+        self.assertEqual(
+            self._call(self.irods.username, self.irods.zone, self.irods.username, self.irods.zone),
+            IrodsVal.integer(0))
+
+    def test_blocked_user(self):
+        """Verify that a mismatched auth user is rejected"""
+        ec = self._call(
+            self.irods.username, self.irods.zone, 'not_' + self.irods.username, self.irods.zone)
+        self.assertEqual(ec, IrodsVal.integer(-169000))
+
+    def test_blocked_zone(self):
+        """Verify that a mismatched auth user zone is rejected"""
+        ec = self._call(
+            self.irods.username, self.irods.zone, self.irods.username, 'not_' + self.irods.zone)
+        self.assertEqual(ec, IrodsVal.integer(-169000))
+
+
+class PepApiAuthenticatePreTest(_CveTest):
+    """Tests of pep_api_authenticate_pre"""
+
+    @classmethod
+    def setUpClass(cls):
+        test_rules.clear_rods_log()
+
+    def _call(self, startup_user: str, startup_zone: str, auth_user: str, auth_zone: str) -> IrodsVal:
+        json_body = '{"user_name":"' + auth_user + '","zone_name":"' + auth_zone + '"}'
+        rule = self.mk_rule(f"""
+            *Comm.proxy_user_name = '{startup_user}';
+            *Comm.proxy_rods_zone = '{startup_zone}';
+            *Req.buf = '{json_body}';
+            *ec = errorcode(pep_api_authenticate_pre('', *Comm, *Req, *Resp));
+            writeLine('stdout', '*ec');
+        """)
+        return self.exec_rule(rule, IrodsType.INTEGER)
+
+    def test_allowed(self):
+        """Verify that a matching startup proxy and auth identity are accepted"""
+        self.assertEqual(
+            self._call(self.irods.username, self.irods.zone, self.irods.username, self.irods.zone),
+            IrodsVal.integer(0))
+
+    def test_blocked(self):
+        """Verify that a mismatched startup user or zone is rejected"""
+        ec = self._call(
+            self.irods.username, self.irods.zone, 'not_' + self.irods.username, self.irods.zone)
+        self.assertEqual(ec, IrodsVal.integer(-169000))
+
+    def test_log_msg(self):
+        """Verify that the PEP writes the expected log message"""
+        self._call(
+            self.irods.username, self.irods.zone, 'not_' + self.irods.username, self.irods.zone)
+        msg = (
+            f'pep_api_authenticate_pre: startup_proxy[{self.irods.username}#{self.irods.zone}] '
+            f'does not match auth_user[not_{self.irods.username}#{self.irods.zone}] - DENIED '
+            '(AN 110000)')
+        for line in self.tail_rods_log():
+            if msg in line:
+                return
+        self.fail("Didn't log correct message")
+
+
+class TestPepApiBulkDataObjReg(IrodsTestCase):
+    """Tests of pep_api_bulk_data_obj_reg_pre"""
+
+    def __init__(self, method: str):
+        super().__init__(method)
+        self._result = None
+
+    def setUp(self):
+        super().setUp()
+        sql_res = [GenQueryResponseColumn(attriInx=0, reslen=0, value=[]) for _ in range(50)]
+        msg = GenQueryResponse(
+            rowCnt=0, attriCnt=0, continueInx=0, totalRowCount=0, SqlResult_PI=sql_res)
+        req = iRODSMessage(
+            "RODS_API_REQ",
+            msg=msg,
+            int_info=api_number['BULK_DATA_OBJ_REG_AN'])
+        with self.irods.pool.get_connection() as conn:  # type: ignore
+            conn.send(req)  # type: ignore
+            try:
+                conn.recv()
+                self.fail("rcBulkDataObjReg was allowed")
+            except SYS_NOT_ALLOWED as e:
+                self._result = e
+
+    def test_blocked(self):
+        """Verify that no one can call rcBulkDataObjReg"""
+        self.assertIsInstance(self._result, SYS_NOT_ALLOWED)
+
+    def test_log_msg(self):
+        """Verify that a message was logged"""
+        msg = (
+            f'pep_api_bulk_data_obj_reg_pre: prevented [{self.irods.username}#{self.irods.zone}]'
+            ' from bulk registering files')
         for line in self.tail_rods_log():
             if msg in line:
                 return
@@ -583,6 +706,229 @@ class TestPepApiDataObjUnlinkPreDelete(_CveTest):
             if 'cyverse_core: pep_api_data_obj_unlink_pre' in line:
                 return
         self.fail('cyverse_core version not called')
+
+
+class TestPepApiExecRuleExpression(IrodsTestCase):
+    """Tests of pep_api_exec_rule_expression_pre"""
+
+    # This fork doesn't use the Python Rule Engine Plugin, so rcExecRuleExpression
+    # can't be exercised with a raw NATIVE_PROT payload the way upstream does.
+    @unittest.skip("not implemented - no Python Rule Engine Plugin in this fork")
+    def test_prevent_python_code_injection(self):
+        """Verify that arbitrary Python code cannot be run via rcExecRuleExpression"""
+
+    def test_allow_delay_exec(self):
+        """
+        Verify that delay rules still work, since they execute via a different
+        code path than rcExecRuleExpression.
+        """
+        marker = "CVE_DELAY_EXECUTION_TEST"
+        rule = self.mk_rule(f"delay('<PLUSET>0s</PLUSET>') {{writeLine('serverLog', '{marker}')}}")
+        self.exec_rule(rule, IrodsType.NONE)
+        for _ in range(10):
+            query = self.irods.query().count(RuleExec.id).filter(Like(RuleExec.name, f'%{marker}%'))
+            if query.one()[RuleExec.id] == 0:
+                break
+            time.sleep(1)
+        for line in self.tail_rods_log():
+            if marker in line:
+                return
+        self.fail("delay rule was blocked")
+
+
+class TestPepApiRegDataObjDirectConsumerPut(IrodsTestCase):
+    """
+    Test pep_api_reg_data_obj_pre when a file is uploaded directly to a catalog
+    consumer. This confirms that the normal iput path (a resource server
+    registering its own replica) isn't blocked by the rodsadmin restriction.
+    """
+
+    def test(self):
+        """Verify that an ordinary upload to a consumer is still possible"""
+        username = "reg_data_obj_consumer_test"
+        password = "password"
+        self.ensure_user_exists(username, password=password)
+        obj_path = f"/{self.irods.zone}/home/{username}/obj"
+        try:
+            with NamedTemporaryFile(delete=False) as file:
+                file.close()
+                consumer_env = dict(
+                    environ,
+                    IRODS_HOST=_CONSUMER_HOST,
+                    IRODS_PORT="1247",
+                    IRODS_ZONE_NAME=self.irods.zone,
+                    IRODS_USER_NAME=username)
+                subprocess.run(
+                    f"echo '{password}' | iput '{file.name}' '{obj_path}'",
+                    env=consumer_env,
+                    stdout=PIPE,
+                    stderr=PIPE,
+                    shell=True,
+                    check=True,
+                    encoding='utf-8')
+            if not self.irods.data_objects.exists(obj_path):
+                self.fail("put to catalog consumer was blocked")
+        finally:
+            self.ensure_obj_absent(obj_path)
+            self.irods.users.remove(username)
+
+
+class _DataObjInfoMsg(Message):
+
+    _name = 'DataObjInfo_PI'
+
+    objPath = StringProperty()
+    rescName = StringProperty()
+    rescHier = StringProperty()
+    dataType = StringProperty()
+    dataSize = LongProperty()
+    chksum = StringProperty()
+    version = StringProperty()
+    filePath = StringProperty()
+    dataOwnerName = StringProperty()
+    dataOwnerZone = StringProperty()
+    replNum = IntegerProperty()
+    replStatus = IntegerProperty()
+    statusString = StringProperty()
+    dataId = LongProperty()
+    collId = LongProperty()
+    dataMapId = IntegerProperty()
+    dataComments = StringProperty()
+    dataMode = StringProperty()
+    dataExpiry = StringProperty()
+    dataCreate = StringProperty()
+    dataModify = StringProperty()
+    dataAccess = StringProperty()
+    dataAccessInx = IntegerProperty()
+    writeFlag = IntegerProperty()
+    destRescName = StringProperty()
+    backupRescName = StringProperty()
+    subPath = StringProperty()
+    specColl = IntegerProperty()
+    regUid = IntegerProperty()
+    otherFlags = IntegerProperty()
+    KeyValPair_PI = SubmessageProperty(StringStringMap)
+    in_pdmo = StringProperty()
+    next = IntegerProperty()
+    rescId = LongProperty()
+
+
+class TestPepApiRegDataObjClient(IrodsTestCase):
+    """Verify that a normal user cannot directly call rcRegDataObj"""
+
+    def __init__(self, method: str):
+        super().__init__(method)
+        self._username = 'reg_data_obj_test'
+        self._obj_path = None
+        self._repl_path = '/tmp/obj'
+        self._result = None
+
+    def setUp(self):
+        super().setUp()
+        self.ensure_user_exists(self._username, 'password')
+        self._obj_path = f"/{self.irods.zone}/home/{self._username}/obj"
+        try:
+            with iRODSSession(
+                host=self.irods.host,
+                port=self.irods.port,
+                zone=self.irods.zone,
+                user=self._username,
+                password='password',
+            ) as user_sess:
+                data_obj_info = _DataObjInfoMsg(
+                    objPath=self._obj_path,
+                    rescName='',
+                    rescHier='',
+                    dataType='',
+                    dataSize=0,
+                    chksum='',
+                    version='',
+                    filePath=self._repl_path,
+                    dataOwnerName=self._username,
+                    dataOwnerZone=self.irods.zone,
+                    replNum=0,
+                    replStatus=0,
+                    statusString='',
+                    dataId=0,
+                    collId=0,
+                    dataMapId=0,
+                    dataComments='',
+                    dataMode='',
+                    dataExpiry='',
+                    dataCreate='',
+                    dataModify='',
+                    dataAccess='',
+                    dataAccessInx=0,
+                    writeFlag=0,
+                    destRescName='',
+                    backupRescName='',
+                    subPath='',
+                    specColl=0,
+                    regUid=0,
+                    otherFlags=0,
+                    KeyValPair_PI=StringStringMap(),
+                    in_pdmo='',
+                    next=0,
+                    rescId=0)
+                request = iRODSMessage(
+                    'RODS_API_REQ',
+                    msg=data_obj_info,
+                    int_info=api_number['REG_DATA_OBJ_AN'])
+                with user_sess.pool.get_connection() as conn:  # type: ignore
+                    conn.send(request)  # type: ignore
+                    conn.recv()
+        except SYS_NOT_ALLOWED as e:
+            self._result = e
+        finally:
+            self.irods.users.remove(self._username)
+
+    def test_blocked(self):
+        """Verify that a normal user cannot call rcRegDataObj"""
+        self.assertIsInstance(self._result, SYS_NOT_ALLOWED)
+
+    def test_log_msg(self):
+        """Verify that the PEP writes the expected log message"""
+        msg = (
+            f'pep_api_reg_data_obj_pre: prevented [{self._username}#{self.irods.zone}] from'
+            f' registering logical_path[{self._obj_path}] with physical_path[{self._repl_path}]')
+        for line in self.tail_rods_log():
+            if msg in line:
+                return
+        self.fail("Didn't log correct message")
+
+
+class TestPepDatabaseRegUserRe(_CveTest):
+    """Tests of pep_database_reg_user_re_pre"""
+
+    def __init__(self, method: str):
+        super().__init__(method)
+        self._target_name = "pep_db_reg_user_re_target"
+
+    def tearDown(self):
+        try:
+            self.irods.users.remove(self._target_name)
+        except UserDoesNotExist:
+            pass
+        super().tearDown()
+
+    def _mkgroup(self, user_type):
+        request = iRODSMessage(
+            "RODS_API_REQ",
+            msg=UserAdminRequest("mkgroup", self._target_name, user_type),
+            int_info=api_number["USER_ADMIN_AN"])
+        with self.irods.pool.get_connection() as conn:  # type: ignore
+            conn.send(request)  # type: ignore
+            conn.recv()
+
+    def test_create_rodsadmin_blocked(self):
+        """Verify that a crafted USER_ADMIN_AN request cannot create a rodsadmin"""
+        with self.assertRaises(SYS_NOT_ALLOWED):
+            self._mkgroup("rodsadmin")
+
+    def test_create_rodsgroup_allowed(self):
+        """Verify that a crafted USER_ADMIN_AN request can still create a rodsgroup"""
+        self._mkgroup("rodsgroup")
+        self.irods.groups.get(self._target_name)
 
 
 if __name__ == "__main__":
