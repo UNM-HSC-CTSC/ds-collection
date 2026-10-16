@@ -34,3 +34,15 @@ playbooks/tests/rules/cyverse_trash.py
 # hooks and intentionally only carries the trash ones - diff carefully rather
 # than porting upstream's version of these hooks wholesale.
 playbooks/files/irods/etc/irods/cyverse_core.re
+
+# Not currently deployed by this fork (sftp isn't in the UNM deployment's
+# cyverse_ds.yml), so upstream sftpgo changes aren't worth reviewing on every
+# pass. Watched only so version/security-relevant drift doesn't go unnoticed
+# indefinitely if sftp is ever turned on here. As of 2026-10, upstream's
+# sftp.yml carries real logic changes (REST-API-driven vFolder/API-key setup,
+# sftpgo 2.4.5->2.7.3, sftpgo-auth-irods v0.1.14->v0.2.2) - not a simple
+# version-bump cherry-pick, and includes at least one apparent copy-paste bug
+# in the TLS key-file task's `when` condition. Review carefully if revisited.
+playbooks/sftp.yml
+playbooks/templates/sftp/etc/sftpgo/sftpgo.json.j2
+playbooks/tests/sftp.yml
